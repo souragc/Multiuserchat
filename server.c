@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdbool.h>
+#include <signal.h>
 
 #define PORT 8080
 #define HASH_LEN 34
@@ -122,6 +123,49 @@ username:
     printf("register successful");
 }
 
+
+void openChat(int new_socket){
+    char msg[100];
+    pid_t id=0;
+
+    memset(msg,'\0',100);
+    id = fork();
+    // For receiving messages
+    if(!id){
+        while(1){
+            read(new_socket, msg, 100);
+            if(strlen(msg)>0){
+                // Clearing prompt on screen
+                printf("\n");
+                printf("\033[A\r");
+                for(int i=0;i<100;i++)
+                    printf(" ");
+                printf("\n");
+                printf("\033[A\r");
+                printf("Message from client: %s\n",msg);
+                // killing process
+                if(strncmp(msg,"quit",4)==0){
+                    pid_t ppid = getppid();
+                    kill(ppid, SIGTERM);
+                    exit(0);
+                }
+                memset(msg,'\0',100);
+                printf("Enter message: ");
+            }
+        }
+    }
+
+    // Parent sends messages
+    while(1){
+        memset(msg,'\0',100);
+        printf("Enter message: ");
+        scanf("%100s",msg);
+
+        send(new_socket, msg, strlen(msg),0);
+    }
+}
+
+
 void login(int new_socket){
     int valread=0;
 enterUsername: 
@@ -147,6 +191,7 @@ enterPassword:
     else
         send(new_socket,"Success", 7,0);
     printf("Login success");
+    openChat(new_socket);
 }
 
 

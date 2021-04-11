@@ -4,10 +4,18 @@
 #include <unistd.h>
 #include <string.h>
 #include <openssl/md5.h>
+#include <openssl/rsa.h>
+#include <openssl/pem.h>
+#include <openssl/err.h>
 #include <stdlib.h>
+#include <sys/types.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <signal.h>
 #define PORT 8080
 #define HASH_LEN 34
-
+#define KEY_LENGTH  2048
+#define PUB_EXP     65537
 
 // Globals to store everything.
 char name[100]={0};
@@ -15,9 +23,10 @@ char pass[100]={0};
 char hash[HASH_LEN]={0};
 int sock = 0;
 int valread;
-
+RSA * keypair;
 
 void initialize(){
+
     // No buffering
     setvbuf(stdin,NULL,_IONBF,0);
     setvbuf(stdout,NULL,_IONBF,0);
@@ -127,6 +136,47 @@ unsigned int mainMenu(){
     return getInt();
 }
 
+void openChat(){
+    char msg[100];
+    pid_t id=0;
+
+    memset(msg,'\0',100);
+
+    id = fork();
+    // For receiving messages
+    if(!id){
+        while(1){
+            read(sock, msg, 100);
+            if(strlen(msg)>0){
+                // Clearing prompt on screen
+                printf("\n");
+                printf("\033[A\r");
+                for(int i=0;i<100;i++)
+                    printf(" ");
+                printf("\n");
+                printf("\033[A\r");
+                printf("Message from server: %s\n",msg);
+                memset(msg,'\0',100);
+                printf("Enter message: ");
+            }
+        }
+    }
+
+    // Parent sends messages
+    while(1){
+        memset(msg,'\0',100);
+        printf("Enter message: ");
+        scanf("%100s",msg);
+
+        send(sock, msg, strlen(msg),0);
+        // killing process
+        if(strncmp(msg,"quit",4)==0){
+            kill(id,SIGTERM);
+            exit(0);
+        }
+    }
+}
+
 void login(){
     // Enter username and password.
 enterUsername:
@@ -153,6 +203,8 @@ enterPassword:
         printf("Username and password doesn't match.\n");
         goto enterPassword;
     }
+    puts("Type quit to terminate the connection.");
+    openChat();
     return;
 }
 

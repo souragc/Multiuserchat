@@ -155,7 +155,7 @@ void openChat(){
                     printf(" ");
                 printf("\n");
                 printf("\033[A\r");
-                printf("Message from server: %s\n",msg);
+                printf("%s\n",msg);
                 memset(msg,'\0',100);
                 printf("Enter message: ");
             }
@@ -166,9 +166,13 @@ void openChat(){
     while(1){
         memset(msg,'\0',100);
         printf("Enter message: ");
-        scanf("%100s",msg);
+        read(0,msg,99);
 
-        send(sock, msg, strlen(msg),0);
+        char buf[200];
+        memset(buf,'\x00',200);
+        sprintf(buf,"%s says %s",name, msg);
+
+        send(sock, buf, strlen(buf),0);
         // killing process
         if(strncmp(msg,"quit",4)==0){
             kill(id,SIGTERM);
@@ -227,6 +231,7 @@ username:
     getPassword();
     memset(res, '\0',50);
     send(sock , hash , strlen(hash) , 0 );
+    openChat();
     return;
 }
 

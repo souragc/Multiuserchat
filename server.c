@@ -1,6 +1,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <sys/socket.h>
+#include <sys/mman.h>
 #include <stdlib.h>
 #include <netinet/in.h>
 #include <string.h>
@@ -11,14 +12,19 @@
 #include <fcntl.h>
 #include <stdbool.h>
 #include <signal.h>
+#include <time.h>
 
 #define PORT 8080
 #define HASH_LEN 34
 
-pthread_mutex_t mutex;
+// One for file writing race prevention
+// Other for mem read/write race prevention.
+pthread_mutex_t mutex, memMutex;
 
 
-int clientCount = 0;
+
+// Shared memory for children
+char * ptr = 0;
 
 // Globals for client provided user, pass.
 // and also user and pass from db.
@@ -45,7 +51,6 @@ int checkUser(){
     FILE * fd = fopen("userpass.db","a+");
     memset(luser,'\x00',100);
     fscanf(fd,"%s %s",luser,lpass);
-    printf("%s\n",luser);
     while(strlen(luser)>0){
 
         // Takes the longer of client username and db username.
@@ -101,7 +106,94 @@ void fileWrite(){
     pthread_mutex_unlock(&mutex);
 }
 
-void newUser(int new_socket){
+void openChat(int new_socket,int myNum){
+    char msg[200];
+    pid_t id=0;
+
+    memset(msg,'\0',200);
+    id = fork();
+    // For receiving messages
+    if(!id){
+        while(1){
+            read(new_socket, msg, 200);
+            if(strlen(msg)>0){
+                // Clearing prompt on screen
+                printf("Message from client: %s\n",msg);
+                int count = 0;
+
+                // When we get a message from client, we copy it to all other clients memory.
+                // This will be later taken by the respective client.
+                printf("Got message locking\n");
+                // killing process
+                if(strstr(msg,"quit")){
+                    pid_t ppid = getppid();
+                    // Set the first byte of memory to null so next client can reuse
+                    // the area.
+                    pthread_mutex_lock(&memMutex);
+                    memset(ptr+(myNum*200),'\x00',200);
+                    pthread_mutex_unlock(&memMutex);
+
+                    kill(ppid, SIGTERM);
+                    exit(0);
+                }
+tryAgain:
+                pthread_mutex_lock(&memMutex);
+                while(1){
+                    // We don't want to go beyond our memory which is in use.
+                    if(*(ptr+(count*200))==(char)'\xff')
+                        break;
+                    // If first byte is null that means client exited.
+                    // Also we don't want to copy msg to our own memory.
+                    printf("Value at index 0 %d with count %d and myNum %d\n",(char)*(ptr+(count*200)),count,myNum);
+                    if(*(ptr+(count*200)) && count!=myNum){
+                            // If the data part is not null, that means the other client
+                            // has not yet taken it's previoud messge.
+                            printf("Trying to write to client number %d\n",count);
+                            if(!*(ptr+(count*200)+1) || *(ptr+(count*200)+1)==(char)'\xff'){
+                                memcpy((ptr+(count*200)+1),msg,strlen(msg));
+                            }
+                            // In that case, unlock mutex and give some time for other client to take the message.
+                            else{
+                                pthread_mutex_unlock(&memMutex);
+                                usleep(500);
+                                goto tryAgain;
+                            }
+                    }
+                    else{
+                        printf("My own mem\n");
+                    }
+                    count++;
+                    usleep(500);
+                }
+                printf("Unlocking\n");
+                pthread_mutex_unlock(&memMutex);
+                memset(msg,'\0',200);
+                //printf("Enter message: ");
+            }
+            usleep(500);
+        }
+    }
+
+    // Parent sends messages
+    while(1){
+        memset(msg,'\0',200);
+        pthread_mutex_lock(&memMutex);
+        // If we have data in our own memory, copy that to msg and send to client.
+        if(*(ptr+(myNum*200)+1) && *(ptr+(myNum*200)+1)!=(char)'\xff'){
+            memcpy(msg,(ptr+(myNum*200)+1),strlen((ptr+(myNum*200)+1)));
+            // Nulll out the area so next message can be put in the same place.
+            memset((ptr+(myNum*200)+1),'\x00',199);
+        }
+        pthread_mutex_unlock(&memMutex);
+
+        send(new_socket, msg, strlen(msg),0);
+        usleep(500);
+    }
+}
+
+
+
+void newUser(int new_socket, int myNum){
     int valread=0;
 username:
     memset(user,'\x00',100);
@@ -121,52 +213,11 @@ username:
     valread = read(new_socket, pass, 100);
     fileWrite();
     printf("register successful");
+    openChat(new_socket, myNum);
 }
 
 
-void openChat(int new_socket){
-    char msg[100];
-    pid_t id=0;
-
-    memset(msg,'\0',100);
-    id = fork();
-    // For receiving messages
-    if(!id){
-        while(1){
-            read(new_socket, msg, 100);
-            if(strlen(msg)>0){
-                // Clearing prompt on screen
-                printf("\n");
-                printf("\033[A\r");
-                for(int i=0;i<100;i++)
-                    printf(" ");
-                printf("\n");
-                printf("\033[A\r");
-                printf("Message from client: %s\n",msg);
-                // killing process
-                if(strncmp(msg,"quit",4)==0){
-                    pid_t ppid = getppid();
-                    kill(ppid, SIGTERM);
-                    exit(0);
-                }
-                memset(msg,'\0',100);
-                printf("Enter message: ");
-            }
-        }
-    }
-
-    // Parent sends messages
-    while(1){
-        memset(msg,'\0',100);
-        printf("Enter message: ");
-        scanf("%100s",msg);
-
-        send(new_socket, msg, strlen(msg),0);
-    }
-}
-
-
-void login(int new_socket){
+void login(int new_socket, int myNum){
     int valread=0;
 enterUsername: 
     memset(user,'\x00',100);
@@ -191,7 +242,7 @@ enterPassword:
     else
         send(new_socket,"Success", 7,0);
     printf("Login success");
-    openChat(new_socket);
+    openChat(new_socket, myNum);
 }
 
 
@@ -205,8 +256,21 @@ int main(int argc, char const *argv[])
     // No buffering
     initialize();
 
+    // Shared memory initialization.
+    // Each child gets 100 bytes
+    // 1 bytes for inuse. 98 bytes for data and 1 bytes for null
+    ptr = mmap(NULL, 0x1000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    // Initialize with \xff to help in utilizing unsued memory used by
+    // previousely connected client.
+
+
+    printf("%d\n",ptr);
+    memset(ptr,'\xff',0x1000);
+
     // Mutex used to avoid race in file
     pthread_mutex_init(&mutex, NULL);
+    // Mutex to avoid mem race
+    pthread_mutex_init(&memMutex, NULL);
 
     // Normal socket setup
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
@@ -236,6 +300,7 @@ int main(int argc, char const *argv[])
         perror("listen");
         exit(EXIT_FAILURE);
     }
+    int clientNum = 0;
 
     // Multiple clients can connect
     while(1){
@@ -245,11 +310,21 @@ int main(int argc, char const *argv[])
             perror("accept");
             exit(EXIT_FAILURE);
         }
-        clientCount++;
+        // Finding free memory
+        // If a client previousely used a memory and disconnected, it will be null
+        // else if it was not used, it will be \xff
+        clientNum=0;
+        pthread_mutex_lock(&memMutex);
+        while(1){
+            if(!*(ptr+(clientNum*200)) || *(ptr+(clientNum*200))==(char)'\xff')
+                break;
+            clientNum++;
+        }
+        *(ptr+(clientNum*200)) = (char) '\x01';
+        memset((ptr+(clientNum*200)+1),'\x00',199);
+        pthread_mutex_unlock(&memMutex);
         // Sperate child for each client
         if(!fork()){
-            int found = 0;
-            int clienNumber = clientCount;
             char opt[2]={0};
 
             // Client sends the option selected
@@ -258,9 +333,9 @@ int main(int argc, char const *argv[])
 
             // Do according to the option
             switch(option){
-                case 1: login(new_socket);
+                case 1: login(new_socket, clientNum);
                         break;
-                case 2: newUser(new_socket);
+                case 2: newUser(new_socket, clientNum);
                         break;
                 default: exit(0);
             }

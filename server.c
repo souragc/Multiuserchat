@@ -106,9 +106,33 @@ void fileWrite(){
     pthread_mutex_unlock(&mutex);
 }
 
+void saveMsg(char * msg){
+    pthread_mutex_lock(&mutex);
+    FILE * fd = fopen("messages.db","a+");
+    fputs(msg,fd);
+    fclose(fd);
+    pthread_mutex_unlock(&mutex);
+    return;
+}
+
+void viewHistory(int new_socket){
+    char msg[200]={0};
+    pthread_mutex_lock(&mutex);
+    FILE * fd = fopen("messages.db","a+");
+    fgets(msg,200,fd);
+    while(strlen(msg)>0){
+        send(new_socket,msg,strlen(msg),0);
+        memset(msg,'\x00',200);
+        fgets(msg,200,fd);
+    }
+    fclose(fd);
+    pthread_mutex_unlock(&mutex);
+    return;
+}
 void openChat(int new_socket,int myNum){
     char msg[200];
     pid_t id=0;
+    viewHistory(new_socket);
 
     memset(msg,'\0',200);
     id = fork();
@@ -136,6 +160,7 @@ void openChat(int new_socket,int myNum){
                     kill(ppid, SIGTERM);
                     exit(0);
                 }
+                saveMsg(msg);
 tryAgain:
                 pthread_mutex_lock(&memMutex);
                 while(1){
@@ -146,18 +171,18 @@ tryAgain:
                     // Also we don't want to copy msg to our own memory.
                     printf("Value at index 0 %d with count %d and myNum %d\n",(char)*(ptr+(count*200)),count,myNum);
                     if(*(ptr+(count*200)) && count!=myNum){
-                            // If the data part is not null, that means the other client
-                            // has not yet taken it's previoud messge.
-                            printf("Trying to write to client number %d\n",count);
-                            if(!*(ptr+(count*200)+1) || *(ptr+(count*200)+1)==(char)'\xff'){
-                                memcpy((ptr+(count*200)+1),msg,strlen(msg));
-                            }
-                            // In that case, unlock mutex and give some time for other client to take the message.
-                            else{
-                                pthread_mutex_unlock(&memMutex);
-                                usleep(500);
-                                goto tryAgain;
-                            }
+                        // If the data part is not null, that means the other client
+                        // has not yet taken it's previoud messge.
+                        printf("Trying to write to client number %d\n",count);
+                        if(!*(ptr+(count*200)+1) || *(ptr+(count*200)+1)==(char)'\xff'){
+                            memcpy((ptr+(count*200)+1),msg,strlen(msg));
+                        }
+                        // In that case, unlock mutex and give some time for other client to take the message.
+                        else{
+                            pthread_mutex_unlock(&memMutex);
+                            usleep(500);
+                            goto tryAgain;
+                        }
                     }
                     else{
                         printf("My own mem\n");

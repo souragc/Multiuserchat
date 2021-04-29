@@ -2,6 +2,9 @@
 
 A client server application that have login and registeration.
 Some features are yet to be tested.
+Server uses 2 children per client. One to receive message and one to send.
+Client uses a seperate thread to wait for a message from server and then
+updates the chat window.
 
 ### Usage
 

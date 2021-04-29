@@ -1,0 +1,3 @@
+threading
+tkinter
+socket

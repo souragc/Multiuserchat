@@ -67,6 +67,39 @@ int checkUser(){
     return found;
 }
 
+// If new client joined or existing left, active users will be updated.
+void activeUpdate(int myNum, int type){
+    int i=0;
+    char name[100]={0};
+    if(type==1)
+        // Bytes which user cannot enter into chatbox is used to distinguish between
+        // normal messages and special messages
+        name[0]='\xfd';
+    else
+        name[0]='\xfc';
+    memcpy(name+1,user,98);
+try:
+    while(1){
+        pthread_mutex_lock(&memMutex);
+        if(ptr+(200*i) && i!=myNum){
+            if(!(ptr+(i+200)+1)){
+                memcpy((ptr+(i*200)+1),name,99);
+                i++;
+            }
+            else{
+                pthread_mutex_unlock(&memMutex);
+                usleep(500);
+                goto try;
+            }
+            if(*(ptr+(i+200))=='\xff')
+                break;
+        }
+        pthread_mutex_unlock(&memMutex);
+    }
+    return;
+}
+
+
 int checkPass(){
     int found = 0;
 
@@ -130,10 +163,11 @@ void viewHistory(int new_socket){
     return;
 }
 void openChat(int new_socket,int myNum){
+    printf("Called openchat\n");
     char msg[200];
     pid_t id=0;
+    activeUpdate(myNum, 1);
     viewHistory(new_socket);
-
     memset(msg,'\0',200);
     id = fork();
     // For receiving messages
@@ -149,8 +183,11 @@ void openChat(int new_socket,int myNum){
                 // This will be later taken by the respective client.
                 printf("Got message locking\n");
                 // killing process
+                printf("%s\n",msg);
                 if(strstr(msg,"quit")){
+                    printf("Client quitting\n");
                     pid_t ppid = getppid();
+                    activeUpdate(myNum, 2);
                     // Set the first byte of memory to null so next client can reuse
                     // the area.
                     pthread_mutex_lock(&memMutex);
@@ -205,7 +242,7 @@ tryAgain:
         pthread_mutex_lock(&memMutex);
         // If we have data in our own memory, copy that to msg and send to client.
         if(*(ptr+(myNum*200)+1) && *(ptr+(myNum*200)+1)!=(char)'\xff'){
-            memcpy(msg,(ptr+(myNum*200)+1),strlen((ptr+(myNum*200)+1)));
+            memcpy(msg,(ptr+(myNum*300)+100),strlen((ptr+(myNum*300)+100)));
             // Nulll out the area so next message can be put in the same place.
             memset((ptr+(myNum*200)+1),'\x00',199);
         }
@@ -267,6 +304,7 @@ enterPassword:
     else
         send(new_socket,"Success", 7,0);
     printf("Login success");
+    printf("Opening chat\n");
     openChat(new_socket, myNum);
 }
 
@@ -282,8 +320,8 @@ int main(int argc, char const *argv[])
     initialize();
 
     // Shared memory initialization.
-    // Each child gets 100 bytes
-    // 1 bytes for inuse. 98 bytes for data and 1 bytes for null
+    // Each child gets 300 bytes
+    // 1 bytes for inuse. 100 bytes for name, 199 bytes for data and 1 bytes for null
     ptr = mmap(NULL, 0x1000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     // Initialize with \xff to help in utilizing unsued memory used by
     // previousely connected client.

@@ -75,9 +75,9 @@ void activeUpdate(int myNum, int type){
     if(type==1)
         // Bytes which user cannot enter into chatbox is used to distinguish between
         // normal messages and special messages
-        name[0]=(char)'\xfd';
+        name[0]=(char)'\x05';
     else
-        name[0]=(char)'\xfc';
+        name[0]=(char)'\x06';
     memcpy(name+1,user,98);
     printf("trying %d with mynum %d\n",i,myNum);
 try:
@@ -90,16 +90,13 @@ try:
         }
         if(*(ptr+(200*i)) && i!=myNum){
             if(!*(ptr+(i*200)+1) || *(ptr+(200*i)+1)==(char)'\xff'){
-                memcpy((ptr+(i*200)+1),name,99);
-                i++;
+                memcpy((ptr+(i*200)+1),name,strlen(name));
             }
             else{
                 pthread_mutex_unlock(&memMutex);
                 usleep(500);
                 goto try;
             }
-            if(*(ptr+(i+200))=='\xff')
-                break;
         }
         i++;
         pthread_mutex_unlock(&memMutex);
@@ -163,6 +160,7 @@ void viewHistory(int new_socket){
     fgets(msg,200,fd);
     while(strlen(msg)>0){
         send(new_socket,msg,strlen(msg),0);
+        usleep(5000);
         memset(msg,'\x00',200);
         fgets(msg,200,fd);
     }
@@ -174,7 +172,7 @@ void openChat(int new_socket,int myNum){
     printf("Called openchat\n");
     char msg[200];
     pid_t id=0;
-    //activeUpdate(myNum, 1);
+    activeUpdate(myNum, 1);
     viewHistory(new_socket);
     memset(msg,'\0',200);
     id = fork();
@@ -196,7 +194,7 @@ void openChat(int new_socket,int myNum){
                 if(strstr(msg,"quit")){
                     printf("Client quitting\n");
                     pid_t ppid = getppid();
-                    //activeUpdate(myNum, 2);
+                    activeUpdate(myNum, 2);
                     // Set the first byte of memory to null so next client can reuse
                     // the area.
                     pthread_mutex_lock(&memMutex);
@@ -206,7 +204,9 @@ void openChat(int new_socket,int myNum){
                     kill(ppid, SIGTERM);
                     exit(0);
                 }
-                saveMsg(msg);
+                // Ping messages not to be saved
+                if(msg[0]!='\x04')
+                    saveMsg(msg);
 tryAgain:
                 pthread_mutex_lock(&memMutex);
                 while(1){
@@ -261,7 +261,8 @@ tryAgain:
         pthread_mutex_unlock(&memMutex);
 
         send(new_socket, msg, strlen(msg),0);
-        usleep(500);
+        // Don't overwhelm the client
+        usleep(5000);
     }
 }
 

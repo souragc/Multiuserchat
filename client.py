@@ -43,7 +43,6 @@ def do_stuff(opt="default",user="",pas=""):
             if(userFailed==0):
                 s.sendall(bytes(user,'ascii'))
                 data = s.recv(50)
-                print(data)
                 if(data==b"Found"):
                     userFailed = 1
                 else:
@@ -54,7 +53,6 @@ def do_stuff(opt="default",user="",pas=""):
             md5_hash = hash_object.hexdigest()
             s.sendall(bytes(md5_hash,'ascii'))
             data = s.recv(7)
-            print(data)
             if(data==b"Success"):
                 # If username and password correct, close login page and start chatscreen
                 usernameFinal = user
@@ -94,7 +92,6 @@ def send(chat, T):
     mess = chat.get()+"\n"
     global s
     mess = usernameFinal+":"+mess
-    print(bytes(mess,'ascii'))
     s.sendall(bytes(mess,'ascii'))
     T.configure(state="normal")
     T.insert(tk.END,mess)
@@ -132,33 +129,53 @@ def waitForMessage(T):
     global s
     global activeUsers
     while(True):
-        print("Trying")
         data = s.recv(200)
-        print("received")
         if(len(data)>0):
-            print(data)
-            data = data.decode('utf-8')
+            data = data.strip()
+            data = data.decode('ascii')
             data = data + "\n"
-            if(data[0]=='\xfd'):
+            # If someone joined chat
+            if(data[0]=='\x05'):
                 activeUsers.append(data[1:-1])
                 data = data[1:-1] + " joined the chat\n"
-            elif(data[0]=='\xfc'):
+                # Since person joined after this person, a message is send
+                # informing the presence of this user.
+                newmsg = '\x04'.encode('ascii') + bytes(usernameFinal,'ascii') + b"\n"
+                # Wait for some time so this ping won't be
+                # together with other history messages
+                time.sleep(1)
+                s.sendall(newmsg)
+                T.configure(state="normal")
+                T.insert(tk.END,data)
+                T.configure(state="disabled")
+            # If a person leaves the chat
+            elif(data[0]=='\x06'):
                 name = data[1:-1]
                 activeUsers.remove(name)
                 data = data[1:-1] + " left the chat \n"
-                pass
-            print(data)
-            T.configure(state="normal")
-            T.insert(tk.END,data)
-            T.configure(state="disabled")
+                T.configure(state="normal")
+                T.insert(tk.END,data)
+                T.configure(state="disabled")
+            # This is received by new users connecting
+            elif(data[0]=='\x04'):
+                name = data[1:-1]
+                if name not in activeUsers:
+                    activeUsers.append(name)
+            else:
+                T.configure(state="normal")
+                T.insert(tk.END,data)
+                T.configure(state="disabled")
 
 
 def openChat():
     global s
+    global activeUsers
+    activeUsers.append(usernameFinal+" (me)")
     chatWindow = Tk()
     chatWindow.title("MultiChat")
     chatWindow.geometry("700x500")
-    T = Text(chatWindow, height = 15, width = 80)
+    Label(chatWindow, text="Current session : "+usernameFinal,width="77", height="2").pack()
+    T = Text(chatWindow, height = 14, width = 80)
     T.pack()
     T.configure(yscrollcommand=True)
     T.configure(state='disabled')

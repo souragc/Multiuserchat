@@ -94,6 +94,7 @@ def send(chat, T):
     mess = chat.get()+"\n"
     global s
     mess = usernameFinal+":"+mess
+    print(bytes(mess,'ascii'))
     s.sendall(bytes(mess,'ascii'))
     T.configure(state="normal")
     T.insert(tk.END,mess)
@@ -130,22 +131,26 @@ def active():
 def waitForMessage(T):
     global s
     global activeUsers
-    data = s.recv(200)
-    if(len(data)>0):
-        data = data.decode('ascii')
-        data = data + "\n"
-        if(data[0]=='\xfd'):
-            activeUsers.append(data[1:-1])
-            data = data[1:-1] + " joined the chat\n"
-        elif(data[0]=='\xfc'):
-            name = data[1:-1]
-            activeUsers.remove(name)
-            data = data[1:-1] + " left the chat \n"
-            pass
-        print(data)
-        T.configure(state="normal")
-        T.insert(tk.END,data)
-        T.configure(state="disabled")
+    while(True):
+        print("Trying")
+        data = s.recv(200)
+        print("received")
+        if(len(data)>0):
+            print(data)
+            data = data.decode('utf-8')
+            data = data + "\n"
+            if(data[0]=='\xfd'):
+                activeUsers.append(data[1:-1])
+                data = data[1:-1] + " joined the chat\n"
+            elif(data[0]=='\xfc'):
+                name = data[1:-1]
+                activeUsers.remove(name)
+                data = data[1:-1] + " left the chat \n"
+                pass
+            print(data)
+            T.configure(state="normal")
+            T.insert(tk.END,data)
+            T.configure(state="disabled")
 
 
 def openChat():
@@ -153,7 +158,6 @@ def openChat():
     chatWindow = Tk()
     chatWindow.title("MultiChat")
     chatWindow.geometry("700x500")
-    chatWindow.wm_attributes('-type', 'splash')
     T = Text(chatWindow, height = 15, width = 80)
     T.pack()
     T.configure(yscrollcommand=True)

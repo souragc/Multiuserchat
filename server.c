@@ -70,19 +70,26 @@ int checkUser(){
 // If new client joined or existing left, active users will be updated.
 void activeUpdate(int myNum, int type){
     int i=0;
+    printf("calling update\n");
     char name[100]={0};
     if(type==1)
         // Bytes which user cannot enter into chatbox is used to distinguish between
         // normal messages and special messages
-        name[0]='\xfd';
+        name[0]=(char)'\xfd';
     else
-        name[0]='\xfc';
+        name[0]=(char)'\xfc';
     memcpy(name+1,user,98);
+    printf("trying %d with mynum %d\n",i,myNum);
 try:
     while(1){
         pthread_mutex_lock(&memMutex);
-        if(ptr+(200*i) && i!=myNum){
-            if(!(ptr+(i+200)+1)){
+        if(*(ptr+(200*i))==(char)'\xff'){
+            printf("Exiting update\n");
+            pthread_mutex_unlock(&memMutex);
+            break;
+        }
+        if(*(ptr+(200*i)) && i!=myNum){
+            if(!*(ptr+(i*200)+1) || *(ptr+(200*i)+1)==(char)'\xff'){
                 memcpy((ptr+(i*200)+1),name,99);
                 i++;
             }
@@ -94,6 +101,7 @@ try:
             if(*(ptr+(i+200))=='\xff')
                 break;
         }
+        i++;
         pthread_mutex_unlock(&memMutex);
     }
     return;
@@ -166,10 +174,11 @@ void openChat(int new_socket,int myNum){
     printf("Called openchat\n");
     char msg[200];
     pid_t id=0;
-    activeUpdate(myNum, 1);
+    //activeUpdate(myNum, 1);
     viewHistory(new_socket);
     memset(msg,'\0',200);
     id = fork();
+    printf("called fork\n");
     // For receiving messages
     if(!id){
         while(1){
@@ -187,7 +196,7 @@ void openChat(int new_socket,int myNum){
                 if(strstr(msg,"quit")){
                     printf("Client quitting\n");
                     pid_t ppid = getppid();
-                    activeUpdate(myNum, 2);
+                    //activeUpdate(myNum, 2);
                     // Set the first byte of memory to null so next client can reuse
                     // the area.
                     pthread_mutex_lock(&memMutex);
@@ -202,17 +211,19 @@ tryAgain:
                 pthread_mutex_lock(&memMutex);
                 while(1){
                     // We don't want to go beyond our memory which is in use.
-                    if(*(ptr+(count*200))==(char)'\xff')
+                    if(*(ptr+(count*200))==(char)'\xff'){
+                        pthread_mutex_unlock(&memMutex);
                         break;
+                    }
                     // If first byte is null that means client exited.
                     // Also we don't want to copy msg to our own memory.
                     printf("Value at index 0 %d with count %d and myNum %d\n",(char)*(ptr+(count*200)),count,myNum);
                     if(*(ptr+(count*200)) && count!=myNum){
                         // If the data part is not null, that means the other client
                         // has not yet taken it's previoud messge.
-                        printf("Trying to write to client number %d\n",count);
                         if(!*(ptr+(count*200)+1) || *(ptr+(count*200)+1)==(char)'\xff'){
-                            memcpy((ptr+(count*200)+1),msg,strlen(msg));
+                            printf("Trying to write to client number %d\n",count);
+                            memcpy((ptr+(count*200)+1),msg,strlen(msg)<199?strlen(msg):198);
                         }
                         // In that case, unlock mutex and give some time for other client to take the message.
                         else{
@@ -242,7 +253,8 @@ tryAgain:
         pthread_mutex_lock(&memMutex);
         // If we have data in our own memory, copy that to msg and send to client.
         if(*(ptr+(myNum*200)+1) && *(ptr+(myNum*200)+1)!=(char)'\xff'){
-            memcpy(msg,(ptr+(myNum*300)+100),strlen((ptr+(myNum*300)+100)));
+            printf("Got message, sending to client\n");
+            memcpy(msg,(ptr+(myNum*200)+1),strlen((ptr+(myNum*200)+1)));
             // Nulll out the area so next message can be put in the same place.
             memset((ptr+(myNum*200)+1),'\x00',199);
         }

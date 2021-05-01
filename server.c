@@ -273,6 +273,13 @@ void newUser(int new_socket, int myNum){
 username:
     memset(user,'\x00',100);
     valread = read( new_socket , user, 100);
+    if(user[0]=='\x08'){
+        printf("leaving");
+        pthread_mutex_lock(&memMutex);
+        memset(ptr+(myNum*200),'\x00',200);
+        pthread_mutex_unlock(&memMutex);
+        exit(0);
+    }
 
     // Two users can't have the same username.
     // If username exist, client is asked to enter new username.
@@ -286,6 +293,13 @@ username:
 
     // Username and hash of password is written to the file.
     valread = read(new_socket, pass, 100);
+    if(user[0]=='\x08'){
+        printf("leaving");
+        pthread_mutex_lock(&memMutex);
+        memset(ptr+(myNum*200),'\x00',200);
+        pthread_mutex_unlock(&memMutex);
+        exit(0);
+    }
     fileWrite();
     printf("register successful");
     openChat(new_socket, myNum);
@@ -293,21 +307,39 @@ username:
 
 
 void login(int new_socket, int myNum){
+    printf("Trying to login\n");
     int valread=0;
 enterUsername: 
     memset(user,'\x00',100);
     valread = read( new_socket , user, 100);
+    if(user[0]=='\x08'){
+        printf("leaving");
+        pthread_mutex_lock(&memMutex);
+        memset(ptr+(myNum*200),'\x00',200);
+        pthread_mutex_unlock(&memMutex);
+        exit(0);
+    }
 
     // Check is username exist in db.
     if(checkUser()){
         send(new_socket,"Found",5,0);
+        printf("Correct username\n");
     }
     else{
         send(new_socket,"Not Found",9,0);
         goto enterUsername;
     }
+    printf("Checking password\n");
 enterPassword:
     valread = read(new_socket, pass, 100);
+
+    if(user[0]=='\x08'){
+        printf("leaving");
+        pthread_mutex_lock(&memMutex);
+        memset(ptr+(myNum*200),'\x00',200);
+        pthread_mutex_unlock(&memMutex);
+        exit(0);
+    }
 
     // Password is checked with the db.
     if(!checkPass()){
@@ -406,6 +438,16 @@ int main(int argc, char const *argv[])
             // Client sends the option selected
             valread = read( new_socket , opt, 2);
             int option = atoi(opt);
+            printf("got message from client 0x%x\n",opt[0]);
+
+            switch(opt[0]){
+                case '\x08': printf("client exiting\n"); 
+                             // Free up the memory so next client can use it.
+                             pthread_mutex_lock(&memMutex);
+                             memset(ptr+(clientNum*200),'\x00',200);
+                             pthread_mutex_unlock(&memMutex);
+                             exit(0);
+            }
 
             // Do according to the option
             switch(option){
@@ -413,6 +455,12 @@ int main(int argc, char const *argv[])
                         break;
                 case 2: newUser(new_socket, clientNum);
                         break;
+                case 3: printf("client exiting\n");
+                        // Free up the memory so next client can use it.
+                        pthread_mutex_lock(&memMutex);
+                        memset(ptr+(clientNum*200),'\x00',200);
+                        pthread_mutex_unlock(&memMutex);
+                        exit(0);
                 default: exit(0);
             }
 

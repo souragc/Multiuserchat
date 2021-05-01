@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 from tkinter import *
 import tkinter as tk
 from tkinter import messagebox
@@ -89,6 +90,9 @@ def do_stuff(opt="default",user="",pas=""):
                 messagebox.showerror("Already exists","Username already exists. Please choose a different one.")
                 return
 def send(chat, T):
+    if(not len(chat.get())>0):
+        return
+
     mess = chat.get()+"\n"
     global s
     mess = usernameFinal+":"+mess
@@ -97,12 +101,15 @@ def send(chat, T):
     T.insert(tk.END,mess)
     T.configure(state="disabled")
     chat.set("")
-    pass
+    return
 
 def logout(chatWindow):
     global s
     s.send(b"quit")
     chatWindow.destroy()
+    s.shutdown(socket.SHUT_RDWR)
+    s.close()
+
     init()
 
 def quit(chatWindow):
@@ -121,7 +128,7 @@ def active():
     T.configure(yscrollcommand=True)
     T.configure(bd="1")
     for i in range(len(activeUsers)):
-        T.insert(tk.END,("User {a} : {b}".format(a=i+1,b=activeUsers[i])))
+        T.insert(tk.END,("User {a} : {b}\n".format(a=i+1,b=activeUsers[i])))
     T.configure(state='disabled')
     Button(activeWindow,text="Close", height="2", command=lambda: activeWindow.destroy(), width="77").pack(side=BOTTOM)
 
@@ -129,42 +136,47 @@ def waitForMessage(T):
     global s
     global activeUsers
     while(True):
-        data = s.recv(200)
-        if(len(data)>0):
-            data = data.strip()
-            data = data.decode('ascii')
-            data = data + "\n"
-            # If someone joined chat
-            if(data[0]=='\x05'):
-                activeUsers.append(data[1:-1])
-                data = data[1:-1] + " joined the chat\n"
-                # Since person joined after this person, a message is send
-                # informing the presence of this user.
-                newmsg = '\x04'.encode('ascii') + bytes(usernameFinal,'ascii') + b"\n"
-                # Wait for some time so this ping won't be
-                # together with other history messages
-                time.sleep(1)
-                s.sendall(newmsg)
-                T.configure(state="normal")
-                T.insert(tk.END,data)
-                T.configure(state="disabled")
-            # If a person leaves the chat
-            elif(data[0]=='\x06'):
-                name = data[1:-1]
-                activeUsers.remove(name)
-                data = data[1:-1] + " left the chat \n"
-                T.configure(state="normal")
-                T.insert(tk.END,data)
-                T.configure(state="disabled")
-            # This is received by new users connecting
-            elif(data[0]=='\x04'):
-                name = data[1:-1]
-                if name not in activeUsers:
-                    activeUsers.append(name)
-            else:
-                T.configure(state="normal")
-                T.insert(tk.END,data)
-                T.configure(state="disabled")
+        ## Looks like thread is not stopping since we are not exiting while
+        ## logging out. Need to find another way to handle this
+        try:
+            data = s.recv(200)
+            if(len(data)>0):
+                data = data.strip()
+                data = data.decode('ascii')
+                data = data + "\n"
+                # If someone joined chat
+                if(data[0]=='\x05'):
+                    activeUsers.append(data[1:-1])
+                    data = data[1:-1] + " joined the chat\n"
+                    # Since person joined after this person, a message is send
+                    # informing the presence of this user.
+                    newmsg = '\x04'.encode('ascii') + bytes(usernameFinal,'ascii') + b"\n"
+                    # Wait for some time so this ping won't be
+                    # together with other history messages
+                    time.sleep(2)
+                    s.sendall(newmsg)
+                    T.configure(state="normal")
+                    T.insert(tk.END,data)
+                    T.configure(state="disabled")
+                # If a person leaves the chat
+                elif(data[0]=='\x06'):
+                    name = data[1:-1]
+                    activeUsers.remove(name)
+                    data = data[1:-1] + " left the chat \n"
+                    T.configure(state="normal")
+                    T.insert(tk.END,data)
+                    T.configure(state="disabled")
+                # This is received by new users connecting
+                elif(data[0]=='\x04'):
+                    name = data[1:-1]
+                    if name not in activeUsers:
+                        activeUsers.append(name)
+                else:
+                    T.configure(state="normal")
+                    T.insert(tk.END,data)
+                    T.configure(state="disabled")
+        except:
+            pass
 
 
 def openChat():
@@ -205,8 +217,8 @@ def registerorlogin(opt="default"):
     global main_screen
     main_screen.destroy()
     subscreen = Tk()
-    subscreen.geometry("600x260")
-    subscreen.eval('tk::PlaceWindow . center')
+    subscreen.geometry("600x290")
+    #subscreen.eval('tk::PlaceWindow . center')
     subscreen.wm_attributes('-type', 'splash')
 
     username = StringVar()
@@ -235,9 +247,20 @@ def registerorlogin(opt="default"):
 
 
 def go_back(subscreen):
+    global s
+    msg = b"\x08"
+    print("Sending leave msg")
+    s.sendall(msg)
     subscreen.destroy()
-    mainScreen()
+    s.shutdown(socket.SHUT_RDWR)
+    s.close()
+    init()
     
+
+def quit_main(main_screen):
+    global s
+    s.sendall(b"3")
+    main_screen.destroy()
 
 # Starting screen
 def mainScreen():
@@ -251,7 +274,7 @@ def mainScreen():
 
     Button(text="Login", height="2",bg="gray25",fg="white",activebackground="gray22", command=lambda: registerorlogin("Login"), width="30").pack(pady=10 )
     Button(text="Register", height="2",bg="SpringGreen2",activebackground="SpringGreen3", width="30", command=lambda: registerorlogin("Register")).pack()
-    Button(text="Close", height="2", width="6",bg="tomato",fg="white",activebackground="orange red", command=lambda: quit(main_screen)).pack(pady=20)
+    Button(text="Close", height="2", width="6",bg="tomato",fg="white",activebackground="orange red", command=lambda: quit_main(main_screen)).pack(pady=20)
 
     main_screen.mainloop()
 
@@ -264,6 +287,8 @@ def init():
     global userFailed
     userFailed = 0
     first = 0
+    global activeUsers
+    activeUsers = []
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     # Server has to be started before this.
     s.connect(("localhost",8080))

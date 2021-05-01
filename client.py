@@ -56,13 +56,13 @@ def do_stuff(opt="default",user="",pas=""):
             if(data==b"Success"):
                 # If username and password correct, close login page and start chatscreen
                 usernameFinal = user
-                messagebox.showinfo("Success","Succefully Logged in.")
+                messagebox.showinfo("Success","Succesfully Logged in.")
                 subscreen.destroy()
                 openChat()
                 ## Start chat
                 pass
             else:
-                messagebox.showerror("Failed","Username and Password doesn't match.")
+                messagebox.showerror("Failed","Make sure you enter the correct username & password")
                 return
 
         else:
@@ -81,7 +81,7 @@ def do_stuff(opt="default",user="",pas=""):
                 md5_hash = hash_object.hexdigest()
                 s.sendall(bytes(md5_hash,'ascii'))
                 usernameFinal = user
-                messagebox.showinfo("Success","Succefully registered. You will be automatically logged in.")
+                messagebox.showinfo("Success","Succesfully registered. You will be automatically logged in.")
                 subscreen.destroy()
                 openChat()
                 # Start chat
@@ -114,16 +114,16 @@ def quit(chatWindow):
 def active():
     activeWindow = Tk()
     activeWindow.title("Active Users")
-    activeWindow.geometry("750x550")
-    activeWindow.wm_attributes('-type', 'splash')
+    activeWindow.geometry("600x400")
+    #activeWindow.wm_attributes('-type', 'splash')
     T = Text(activeWindow, height = 15, width = 80)
     T.pack()
     T.configure(yscrollcommand=True)
     T.configure(bd="1")
-    for i in activeUsers:
-        T.insert(tk.END,(i+"\n"))
+    for i in range(len(activeUsers)):
+        T.insert(tk.END,("User {a} : {b}".format(a=i+1,b=activeUsers[i])))
     T.configure(state='disabled')
-    Button(activeWindow,text="Close", height="2", command=lambda: activeWindow.destroy(), width="77").pack()
+    Button(activeWindow,text="Close", height="2", command=lambda: activeWindow.destroy(), width="77").pack(side=BOTTOM)
 
 def waitForMessage(T):
     global s
@@ -172,7 +172,7 @@ def openChat():
     global activeUsers
     activeUsers.append(usernameFinal+" (me)")
     chatWindow = Tk()
-    chatWindow.title("MultiChat")
+    chatWindow.title("Chat Room")
     chatWindow.geometry("700x500")
     Label(chatWindow, text="Current session : "+usernameFinal,width="77", height="2").pack()
     T = Text(chatWindow, height = 14, width = 80)
@@ -184,11 +184,11 @@ def openChat():
     chat_entry = Entry(chatWindow, textvariable=chat, width="80")
     chat_entry.pack()
     Button(chatWindow,text="Send", height="2", command=lambda: send(chat, T), width="77").pack()
+    Button(chatWindow,text="Active Users", height="2", command=lambda: active(), width="77").pack()
     Button(chatWindow,text="Logout", height="2", command=lambda: logout(chatWindow), width="77").pack()
     Button(chatWindow,text="Quit", height="2", command=lambda: quit(chatWindow), width="77").pack()
-    Button(chatWindow,text="Active Users", height="2", command=lambda: active(), width="77").pack()
 
-    # Using thread to recevie message since process is not working
+    # Using thread to receive message since the process is not working
     t = threading.Thread(target = waitForMessage, args=(T,))
     # Should run in the background
     t.setDaemon(True)
@@ -205,14 +205,15 @@ def registerorlogin(opt="default"):
     global main_screen
     main_screen.destroy()
     subscreen = Tk()
-    subscreen.title(opt)
-    subscreen.geometry("600x250")
+    subscreen.geometry("600x260")
+    subscreen.eval('tk::PlaceWindow . center')
     subscreen.wm_attributes('-type', 'splash')
 
     username = StringVar()
     password = StringVar()
 
-    Label(subscreen, text="Enter your details", bg="white").pack()
+    Label(text=opt, bg="RoyalBlue1",fg="white", width="300", height="2", font=("Calibri", 13)).pack()
+    Label(subscreen, text="**Enter your details**").pack(pady=(20,0))
     Label(subscreen, text="").pack()
 
     username_lable = Label(subscreen, text="Username * ")
@@ -229,22 +230,28 @@ def registerorlogin(opt="default"):
     Label(subscreen, text="").pack()
 
     # Call a function that checks for conditions.
-    Button(subscreen, text=opt, width=10, height=1, command =lambda: do_stuff(opt,username.get(),password.get()), bg="white").pack()
+    Button(subscreen, text=opt,bg="SpringGreen2",fg="white",activebackground="SpringGreen3", width=10, height=1, command =lambda: do_stuff(opt,username.get(),password.get())).pack()
+    Button(subscreen, text="Go back",bg="RoyalBlue1",fg="white",activebackground="RoyalBlue2", width=10, height=1, command =lambda: go_back(subscreen)).pack()
+
+
+def go_back(subscreen):
+    subscreen.destroy()
+    mainScreen()
+    
 
 # Starting screen
 def mainScreen():
     global main_screen
     main_screen = Tk()
     main_screen.wm_attributes('-type', 'splash')
-    main_screen.geometry("600x250")
-    main_screen.title("MultiChat")
+    main_screen.geometry("600x280")
 
-    Label(text="Login Or Register", bg="white", width="300", height="2", font=("Calibri", 13)).pack()
+    Label(text="Welcome to Geek Chat!", bg="RoyalBlue1",fg="white", width="300", height="2", font=("Calibri", 13)).pack()
     Label(text="").pack()
 
-    Button(text="Login", height="2", command=lambda: registerorlogin("Login"), width="30").pack()
-    Label(text="").pack()
-    Button(text="Register", height="2", width="30", command=lambda: registerorlogin("Register")).pack()
+    Button(text="Login", height="2",bg="gray25",fg="white",activebackground="gray22", command=lambda: registerorlogin("Login"), width="30").pack(pady=10 )
+    Button(text="Register", height="2",bg="SpringGreen2",activebackground="SpringGreen3", width="30", command=lambda: registerorlogin("Register")).pack()
+    Button(text="Close", height="2", width="6",bg="tomato",fg="white",activebackground="orange red", command=lambda: quit(main_screen)).pack(pady=20)
 
     main_screen.mainloop()
 

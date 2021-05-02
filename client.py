@@ -120,9 +120,9 @@ def quit(chatWindow):
 
 def active():
     activeWindow = Tk()
-    activeWindow.title("Active Users")
-    activeWindow.geometry("600x400")
-    #activeWindow.wm_attributes('-type', 'splash')
+    activeWindow.geometry("600x350")
+    Label(activeWindow, text="Active Users",bg="RoyalBlue2",fg="white",width="600", height="2").pack()
+    activeWindow.wm_attributes('-type', 'splash')
     T = Text(activeWindow, height = 15, width = 80)
     T.pack()
     T.configure(yscrollcommand=True)
@@ -130,7 +130,7 @@ def active():
     for i in range(len(activeUsers)):
         T.insert(tk.END,("User {a} : {b}\n".format(a=i+1,b=activeUsers[i])))
     T.configure(state='disabled')
-    Button(activeWindow,text="Close", height="2", command=lambda: activeWindow.destroy(), width="77").pack(side=BOTTOM)
+    Button(activeWindow,text="Close", height="2",bg="tomato",activebackground="orange red",fg="white", command=lambda: activeWindow.destroy(), width="10").pack()
 
 def waitForMessage(T):
     global s
@@ -184,8 +184,9 @@ def openChat():
     global activeUsers
     activeUsers.append(usernameFinal+" (me)")
     chatWindow = Tk()
-    chatWindow.title("Chat Room")
-    chatWindow.geometry("700x500")
+    chatWindow.wm_attributes('-type', 'splash')
+    chatWindow.geometry("700x550")
+    Label(chatWindow, text="Geek Chat Room!",bg="RoyalBlue2",fg="white",width="700", height="2").pack()
     Label(chatWindow, text="Current session : "+usernameFinal,width="77", height="2").pack()
     T = Text(chatWindow, height = 14, width = 80)
     T.pack()
@@ -195,10 +196,10 @@ def openChat():
     chat = StringVar()
     chat_entry = Entry(chatWindow, textvariable=chat, width="80")
     chat_entry.pack()
-    Button(chatWindow,text="Send", height="2", command=lambda: send(chat, T), width="77").pack()
-    Button(chatWindow,text="Active Users", height="2", command=lambda: active(), width="77").pack()
-    Button(chatWindow,text="Logout", height="2", command=lambda: logout(chatWindow), width="77").pack()
-    Button(chatWindow,text="Quit", height="2", command=lambda: quit(chatWindow), width="77").pack()
+    Button(chatWindow,text="Send", height="2",bg="SpringGreen2",activebackground="SpringGreen1", command=lambda: send(chat, T), width="77").pack()
+    Button(chatWindow,text="Active Users", height="2",bg="SpringGreen2",activebackground="SpringGreen1", command=lambda: active(), width="77").pack()
+    Button(chatWindow,text="Logout", height="2",bg="gray25",fg="white",activebackground="gray22", command=lambda: logout(chatWindow), width="77").pack()
+    Button(chatWindow,text="Quit", height="2",bg="tomato",fg="white",activebackground="orange red", command=lambda: quit(chatWindow), width="10").pack()
 
     # Using thread to receive message since the process is not working
     t = threading.Thread(target = waitForMessage, args=(T,))
@@ -211,13 +212,13 @@ def openChat():
 
 # Same function for login and register
 # Can be later split to check specific conditions
-# Since it looks the same, this avoids code repetation
+# Since it looks the same, this avoids code repetition
 def registerorlogin(opt="default"):
     global subscreen
     global main_screen
     main_screen.destroy()
     subscreen = Tk()
-    subscreen.geometry("600x290")
+    subscreen.geometry("600x320")
     #subscreen.eval('tk::PlaceWindow . center')
     subscreen.wm_attributes('-type', 'splash')
 
@@ -242,7 +243,7 @@ def registerorlogin(opt="default"):
     Label(subscreen, text="").pack()
 
     # Call a function that checks for conditions.
-    Button(subscreen, text=opt,bg="SpringGreen2",fg="white",activebackground="SpringGreen3", width=10, height=1, command =lambda: do_stuff(opt,username.get(),password.get())).pack()
+    Button(subscreen, text=opt,bg="SpringGreen2",activebackground="SpringGreen3", width=10, height=1, command =lambda: do_stuff(opt,username.get(),password.get())).pack()
     Button(subscreen, text="Go back",bg="RoyalBlue1",fg="white",activebackground="RoyalBlue2", width=10, height=1, command =lambda: go_back(subscreen)).pack()
 
 
@@ -272,7 +273,7 @@ def mainScreen():
     Label(text="Welcome to Geek Chat!", bg="RoyalBlue1",fg="white", width="300", height="2", font=("Calibri", 13)).pack()
     Label(text="").pack()
 
-    Button(text="Login", height="2",bg="gray25",fg="white",activebackground="gray22", command=lambda: registerorlogin("Login"), width="30").pack(pady=10 )
+    Button(text="Login", height="2",bg="gray25",fg="white",activebackground="gray22", command=lambda: registerorlogin("Login"), width="30").pack(pady=(30,5) )
     Button(text="Register", height="2",bg="SpringGreen2",activebackground="SpringGreen3", width="30", command=lambda: registerorlogin("Register")).pack()
     Button(text="Close", height="2", width="6",bg="tomato",fg="white",activebackground="orange red", command=lambda: quit_main(main_screen)).pack(pady=20)
 

@@ -98,6 +98,7 @@ def send(chat, T):
     mess = usernameFinal+":"+mess
     s.sendall(bytes(mess,'ascii'))
     T.configure(state="normal")
+    mess = mess.rjust(80," ")
     T.insert(tk.END,mess)
     T.configure(state="disabled")
     chat.set("")

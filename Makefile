@@ -1,4 +1,4 @@
-all: server.c client.c
+all: server.c
 	gcc server.c -o server
 
 clean:

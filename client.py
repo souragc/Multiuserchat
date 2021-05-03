@@ -98,7 +98,8 @@ def send(chat, T):
     mess = usernameFinal+":"+mess
     s.sendall(bytes(mess,'ascii'))
     T.configure(state="normal")
-    mess = mess.rjust(80," ")
+    mess = mess[len(usernameFinal)+1:]
+    mess = mess.rjust(77," ") + " "*3
     T.insert(tk.END,mess)
     T.configure(state="disabled")
     chat.set("")
@@ -140,42 +141,52 @@ def waitForMessage(T):
         ## Looks like thread is not stopping since we are not exiting while
         ## logging out. Need to find another way to handle this
         try:
-            data = s.recv(200)
+            data = s.recv(500)
             if(len(data)>0):
                 data = data.strip()
                 data = data.decode('ascii')
-                data = data + "\n"
-                # If someone joined chat
-                if(data[0]=='\x05'):
-                    activeUsers.append(data[1:-1])
-                    data = data[1:-1] + " joined the chat\n"
-                    # Since person joined after this person, a message is send
-                    # informing the presence of this user.
-                    newmsg = '\x04'.encode('ascii') + bytes(usernameFinal,'ascii') + b"\n"
-                    # Wait for some time so this ping won't be
-                    # together with other history messages
-                    time.sleep(2)
-                    s.sendall(newmsg)
-                    T.configure(state="normal")
-                    T.insert(tk.END,data)
-                    T.configure(state="disabled")
-                # If a person leaves the chat
-                elif(data[0]=='\x06'):
-                    name = data[1:-1]
-                    activeUsers.remove(name)
-                    data = data[1:-1] + " left the chat \n"
-                    T.configure(state="normal")
-                    T.insert(tk.END,data)
-                    T.configure(state="disabled")
-                # This is received by new users connecting
-                elif(data[0]=='\x04'):
-                    name = data[1:-1]
-                    if name not in activeUsers:
-                        activeUsers.append(name)
-                else:
-                    T.configure(state="normal")
-                    T.insert(tk.END,data)
-                    T.configure(state="disabled")
+                temp = data.split("\n")
+                for data in temp:
+                    if(data.startswith(usernameFinal)):
+                        T.configure(state="normal")
+                        mess = data[len(usernameFinal)+1:]
+                        mess = mess.rjust(77," ") + " "*3
+                        T.insert(tk.END,mess)
+                        T.configure(state="disabled")
+                    else:
+                        data = data.strip() + "\n"
+                        # If someone joined chat
+                        if(data[0]=='\x05'):
+                            activeUsers.append(data[1:-1])
+                            data = data[1:-1] + " joined the chat\n"
+                            # Since person joined after this person, a message is send
+                            # informing the presence of this user.
+                            newmsg = '\x04'.encode('ascii') + bytes(usernameFinal,'ascii') + b"\n"
+                            # Wait for some time so this ping won't be
+                            # together with other history messages
+                            time.sleep(2)
+                            s.sendall(newmsg)
+                            T.configure(state="normal")
+                            T.insert(tk.END,data)
+                            T.configure(state="disabled")
+                        # If a person leaves the chat
+                        elif(data[0]=='\x06'):
+                            name = data[1:-1]
+                            activeUsers.remove(name)
+                            data = data[1:-1] + " left the chat \n"
+                            T.configure(state="normal")
+                            T.insert(tk.END,data)
+                            T.configure(state="disabled")
+                        # This is received by new users connecting
+                        elif(data[0]=='\x04'):
+                            name = data[1:-1]
+                            if name not in activeUsers:
+                                activeUsers.append(name)
+                        else:
+                            T.configure(state="normal")
+                            data = " "*3 + data
+                            T.insert(tk.END,data)
+                            T.configure(state="disabled")
         except:
             pass
 
@@ -251,7 +262,6 @@ def registerorlogin(opt="default"):
 def go_back(subscreen):
     global s
     msg = b"\x08"
-    print("Sending leave msg")
     s.sendall(msg)
     subscreen.destroy()
     s.shutdown(socket.SHUT_RDWR)

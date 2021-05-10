@@ -17,6 +17,8 @@
 #define PORT 8080
 #define HASH_LEN 34
 
+#define debug 0
+
 // One for file writing race prevention
 // Other for mem read/write race prevention.
 pthread_mutex_t mutex, memMutex;
@@ -70,7 +72,9 @@ int checkUser(){
 // If new client joined or existing left, active users will be updated.
 void activeUpdate(int myNum, int type){
     int i=0;
+#if debug
     printf("calling update\n");
+#endif
     char name[100]={0};
     if(type==1)
         // Bytes which user cannot enter into chatbox is used to distinguish between
@@ -79,12 +83,16 @@ void activeUpdate(int myNum, int type){
     else
         name[0]=(char)'\x06';
     memcpy(name+1,user,98);
+#if debug
     printf("trying %d with mynum %d\n",i,myNum);
+#endif
 try:
     while(1){
         pthread_mutex_lock(&memMutex);
         if(*(ptr+(200*i))==(char)'\xff'){
+#if debug
             printf("Exiting update\n");
+#endif
             pthread_mutex_unlock(&memMutex);
             break;
         }
@@ -169,30 +177,40 @@ void viewHistory(int new_socket){
     return;
 }
 void openChat(int new_socket,int myNum){
+#if debug
     printf("Called openchat\n");
+#endif
     char msg[200];
     pid_t id=0;
     activeUpdate(myNum, 1);
     viewHistory(new_socket);
     memset(msg,'\0',200);
     id = fork();
+#if debug
     printf("called fork\n");
+#endif
     // For receiving messages
     if(!id){
         while(1){
             read(new_socket, msg, 200);
             if(strlen(msg)>0){
                 // Clearing prompt on screen
+#if debug
                 printf("Message from client: %s\n",msg);
+#endif
                 int count = 0;
 
                 // When we get a message from client, we copy it to all other clients memory.
                 // This will be later taken by the respective client.
+#if debug
                 printf("Got message locking\n");
                 // killing process
                 printf("%s\n",msg);
+#endif
                 if(strstr(msg,"quit")){
+#if debug
                     printf("Client quitting\n");
+#endif
                     pid_t ppid = getppid();
                     activeUpdate(myNum, 2);
                     // Set the first byte of memory to null so next client can reuse
@@ -217,12 +235,16 @@ tryAgain:
                     }
                     // If first byte is null that means client exited.
                     // Also we don't want to copy msg to our own memory.
+#if debug
                     printf("Value at index 0 %d with count %d and myNum %d\n",(char)*(ptr+(count*200)),count,myNum);
+#endif
                     if(*(ptr+(count*200)) && count!=myNum){
                         // If the data part is not null, that means the other client
                         // has not yet taken it's previoud messge.
                         if(!*(ptr+(count*200)+1) || *(ptr+(count*200)+1)==(char)'\xff'){
+#if debug
                             printf("Trying to write to client number %d\n",count);
+#endif
                             memcpy((ptr+(count*200)+1),msg,strlen(msg)<199?strlen(msg):198);
                         }
                         // In that case, unlock mutex and give some time for other client to take the message.
@@ -238,10 +260,11 @@ tryAgain:
                     count++;
                     usleep(500);
                 }
+#if debug
                 printf("Unlocking\n");
+#endif
                 pthread_mutex_unlock(&memMutex);
                 memset(msg,'\0',200);
-                //printf("Enter message: ");
             }
             usleep(500);
         }
@@ -253,7 +276,9 @@ tryAgain:
         pthread_mutex_lock(&memMutex);
         // If we have data in our own memory, copy that to msg and send to client.
         if(*(ptr+(myNum*200)+1) && *(ptr+(myNum*200)+1)!=(char)'\xff'){
+#if debug
             printf("Got message, sending to client\n");
+#endif
             memcpy(msg,(ptr+(myNum*200)+1),strlen((ptr+(myNum*200)+1)));
             // Nulll out the area so next message can be put in the same place.
             memset((ptr+(myNum*200)+1),'\x00',199);
@@ -274,7 +299,9 @@ username:
     memset(user,'\x00',100);
     valread = read( new_socket , user, 100);
     if(user[0]=='\x08'){
+#if debug
         printf("leaving");
+#endif
         pthread_mutex_lock(&memMutex);
         memset(ptr+(myNum*200),'\x00',200);
         pthread_mutex_unlock(&memMutex);
@@ -294,26 +321,34 @@ username:
     // Username and hash of password is written to the file.
     valread = read(new_socket, pass, 100);
     if(user[0]=='\x08'){
+#if debug
         printf("leaving");
+#endif
         pthread_mutex_lock(&memMutex);
         memset(ptr+(myNum*200),'\x00',200);
         pthread_mutex_unlock(&memMutex);
         exit(0);
     }
     fileWrite();
+#if debug
     printf("register successful");
+#endif
     openChat(new_socket, myNum);
 }
 
 
 void login(int new_socket, int myNum){
+#if debug
     printf("Trying to login\n");
+#endif
     int valread=0;
 enterUsername: 
     memset(user,'\x00',100);
     valread = read( new_socket , user, 100);
     if(user[0]=='\x08'){
+#if debug
         printf("leaving");
+#endif
         pthread_mutex_lock(&memMutex);
         memset(ptr+(myNum*200),'\x00',200);
         pthread_mutex_unlock(&memMutex);
@@ -323,18 +358,24 @@ enterUsername:
     // Check is username exist in db.
     if(checkUser()){
         send(new_socket,"Found",5,0);
+#if debug
         printf("Correct username\n");
+#endif
     }
     else{
         send(new_socket,"Not Found",9,0);
         goto enterUsername;
     }
+#if debug
     printf("Checking password\n");
+#endif
 enterPassword:
     valread = read(new_socket, pass, 100);
 
     if(user[0]=='\x08'){
+#if debug
         printf("leaving");
+#endif
         pthread_mutex_lock(&memMutex);
         memset(ptr+(myNum*200),'\x00',200);
         pthread_mutex_unlock(&memMutex);
@@ -348,8 +389,10 @@ enterPassword:
     }
     else
         send(new_socket,"Success", 7,0);
+#if debug
     printf("Login success");
     printf("Opening chat\n");
+#endif
     openChat(new_socket, myNum);
 }
 
@@ -371,8 +414,9 @@ int main(int argc, char const *argv[])
     // Initialize with \xff to help in utilizing unsued memory used by
     // previousely connected client.
 
-
+#if debug
     printf("%d\n",ptr);
+#endif
     memset(ptr,'\xff',0x1000);
 
     // Mutex used to avoid race in file
@@ -438,10 +482,15 @@ int main(int argc, char const *argv[])
             // Client sends the option selected
             valread = read( new_socket , opt, 2);
             int option = atoi(opt);
+#if debug
             printf("got message from client 0x%x\n",opt[0]);
+#endif
 
             switch(opt[0]){
-                case '\x08': printf("client exiting\n"); 
+                case '\x08': 
+#if debug
+                            printf("client exiting\n"); 
+#endif
                              // Free up the memory so next client can use it.
                              pthread_mutex_lock(&memMutex);
                              memset(ptr+(clientNum*200),'\x00',200);
@@ -455,7 +504,10 @@ int main(int argc, char const *argv[])
                         break;
                 case 2: newUser(new_socket, clientNum);
                         break;
-                case 3: printf("client exiting\n");
+                case 3: 
+#if debug
+                        printf("client exiting\n");
+#endif
                         // Free up the memory so next client can use it.
                         pthread_mutex_lock(&memMutex);
                         memset(ptr+(clientNum*200),'\x00',200);

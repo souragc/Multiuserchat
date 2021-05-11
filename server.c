@@ -19,6 +19,13 @@
 
 #define debug 0
 
+// Codes used for specialized messages
+// \x04 - Ping message used to tell other clients you are already in the network.
+// \x05 - Client joined the chat.
+// \x06 - Client left the chat.
+// \x08 - Exit before login or register.
+
+
 // One for file writing race prevention
 // Other for mem read/write race prevention.
 pthread_mutex_t mutex, memMutex;

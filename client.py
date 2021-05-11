@@ -147,7 +147,7 @@ def waitForMessage(T):
                 data = data.decode('ascii')
                 temp = data.split("\n")
                 for data in temp:
-                    if(data.startswith(usernameFinal)):
+                    if(data[:len(usernameFinal)]==usernameFinal):
                         T.configure(state="normal")
                         mess = data[len(usernameFinal)+1:]
                         mess = mess.rjust(77," ") + " "*3

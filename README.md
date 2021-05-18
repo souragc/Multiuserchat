@@ -19,13 +19,13 @@ python3 client.py
 ### Scrshots
 
 Image of the welcome screen.
-![welcome](./img/welcome)
+![welcome](./img/welcome.png)
 
 Register screen. Login screen also looks similar.
-![register](./img/register)
+![register](./img/register.png)
 
 Two people chatting.
-![chat](./img/chat)
+![chat](./img/chat.png)
 
 Active users window.
-![active](./img/active)
+![active](./img/active.png)

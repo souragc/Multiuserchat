@@ -15,3 +15,17 @@ make
 ./server
 python3 client.py
 ```
+
+### Scrshots
+
+Image of the welcome screen.
+![](./imgs/welcome)
+
+Register screen. Login screen also looks similar.
+![](./imgs/register)
+
+Two people chatting.
+![](./imgs/chat)
+
+Active users window.
+![](./imgs/active)

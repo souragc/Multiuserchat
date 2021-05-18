@@ -18,14 +18,14 @@ python3 client.py
 
 ### Scrshots
 
-Image of the welcome screen.
+Image of the welcome screen.  
 ![welcome](./img/welcome.png)
 
-Register screen. Login screen also looks similar.
+Register screen. Login screen also looks similar.  
 ![register](./img/register.png)
 
-Two people chatting.
+Two people chatting.  
 ![chat](./img/chat.png)
 
-Active users window.
+Active users window.  
 ![active](./img/active.png)
